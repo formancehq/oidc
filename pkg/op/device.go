@@ -181,6 +181,12 @@ type deviceAccessTokenRequest struct {
 	subject  string
 	audience []string
 	scopes   []string
+	clientID string
+	authTime time.Time
+}
+
+func (r *deviceAccessTokenRequest) GetAMR() []string {
+	return []string{}
 }
 
 func (r *deviceAccessTokenRequest) GetSubject() string {
@@ -193,6 +199,14 @@ func (r *deviceAccessTokenRequest) GetAudience() []string {
 
 func (r *deviceAccessTokenRequest) GetScopes() []string {
 	return r.scopes
+}
+
+func (r *deviceAccessTokenRequest) GetClientID() string {
+	return r.clientID
+}
+
+func (r *deviceAccessTokenRequest) GetAuthTime() time.Time {
+	return r.authTime
 }
 
 func DeviceAccessToken(w http.ResponseWriter, r *http.Request, exchanger Exchanger) {
@@ -239,6 +253,8 @@ func deviceAccessToken(w http.ResponseWriter, r *http.Request, exchanger Exchang
 		subject:  state.Subject,
 		audience: []string{clientID},
 		scopes:   state.Scopes,
+		clientID: clientID,
+		authTime: state.AuthTime,
 	}
 	resp, err := CreateDeviceTokenResponse(r.Context(), tokenRequest, exchanger, client)
 	if err != nil {
@@ -282,10 +298,20 @@ func CheckDeviceAuthorizationState(ctx context.Context, clientID, deviceCode str
 	return state, oidc.ErrAuthorizationPending()
 }
 
-func CreateDeviceTokenResponse(ctx context.Context, tokenRequest TokenRequest, creator TokenCreator, client Client) (*oidc.AccessTokenResponse, error) {
+func CreateDeviceTokenResponse(ctx context.Context, tokenRequest IDTokenRequest, creator TokenCreator, client Client) (*oidc.AccessTokenResponse, error) {
 	accessToken, refreshToken, validity, err := CreateAccessToken(ctx, tokenRequest, client.AccessTokenType(), creator, client, "")
 	if err != nil {
 		return nil, err
+	}
+
+	var idToken string
+	for _, scope := range tokenRequest.GetScopes() {
+		if scope == "openid" {
+			idToken, err = CreateIDToken(ctx, IssuerFromContext(ctx), tokenRequest, client.IDTokenLifetime(), accessToken, "", creator.Storage(), client)
+			if err != nil {
+				return nil, err
+			}
+		}
 	}
 
 	return &oidc.AccessTokenResponse{
@@ -293,5 +319,6 @@ func CreateDeviceTokenResponse(ctx context.Context, tokenRequest TokenRequest, c
 		RefreshToken: refreshToken,
 		TokenType:    oidc.BearerToken,
 		ExpiresIn:    uint64(validity.Seconds()),
+		IDToken: idToken,
 	}, nil
 }
