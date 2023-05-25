@@ -166,6 +166,7 @@ type DeviceAuthorizationState struct {
 	Done     bool
 	Subject  string
 	Denied   bool
+	AuthTime time.Time
 }
 
 type DeviceAuthorizationStorage interface {
