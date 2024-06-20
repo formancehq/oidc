@@ -94,10 +94,6 @@ func VerifyIDTokenHint[C oidc.Claims](ctx context.Context, token string, v IDTok
 		return nilClaims, err
 	}
 
-	if err = oidc.CheckExpiration(claims, v.Offset()); err != nil {
-		return nilClaims, err
-	}
-
 	if err = oidc.CheckIssuedAt(claims, v.MaxAgeIAT(), v.Offset()); err != nil {
 		return nilClaims, err
 	}
